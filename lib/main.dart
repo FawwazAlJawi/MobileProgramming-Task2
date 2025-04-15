@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
+import 'database_helper.dart';
 
 void main() {
   runApp(MyApp());
@@ -21,82 +22,38 @@ class MyApp extends StatelessWidget {
 } 
 
 class Tasks {
-  static String apiEndpoint = "http://10.0.2.2:5011/api/Task/";
+  static final DatabaseHelper _dbHelper = DatabaseHelper();
 
   static Future<List<TaskOpj>> allTasks() async {
-    var response =
-        await http.get(apiEndpoint, headers: await _getDefaultHeader());
-
-    if (response.statusCode == 200) {
-      final responseJson = json.decode(response.body);
-      var list = new List<TaskOpj>();
-      responseJson
-          .forEach((element) => list.add(new TaskOpj.fromJson(element)));
-      return list;
-    } else {
-      throw Exception('Failed to get Tasks');
-    }
+    final List<Map<String, dynamic>> maps = await _dbHelper.getAllTasks();
+    return List.generate(maps.length, (i) {
+      return TaskOpj.fromJson(maps[i]);
+    });
   }
 
   static Future<TaskOpj> getTask(String id) async {
-    var response =
-        await http.get(apiEndpoint + id, headers: await _getDefaultHeader());
-    if (response.statusCode == 200) {
-      final responseJson = json.decode(response.body);
-      var opj = TaskOpj.fromJson(responseJson);
-      return opj;
-    } else {
-      throw Exception('Failed to get Task with id = $id');
+    final Map<String, dynamic> map = await _dbHelper.getTask(id);
+    if (map == null) {
+      throw Exception('Task not found');
     }
+    return TaskOpj.fromJson(map);
   }
 
   static Future<TaskOpj> createTask(TaskOpj opj) async {
-    var body = json.encode(opj);
-    var response = await http.post(apiEndpoint,
-        body: body, headers: await _getDefaultHeader());
-    if (response.statusCode == 201) {
-      final responseJson = json.decode(response.body);
-      var opj = TaskOpj.fromJson(responseJson);
-      return opj;
-    } else {
-      throw Exception('Failed to create Task \n $body');
-    }
+    await _dbHelper.insertTask(opj.toJson());
+    return opj;
   }
 
   static Future<bool> updateTask(TaskOpj opj) async {
-    var body = json.encode(opj);
-    var response = await http.put(apiEndpoint + opj.guid,
-        body: body, headers: await _getDefaultHeader());
-    if (response.statusCode == 204) {
-      return true;
-    } else {
-      throw Exception('Failed to update Task \n $body');
-    }
+    final int result = await _dbHelper.updateTask(opj.toJson());
+    return result > 0;
   }
 
   static Future deleteTask(String id) async {
-    var response =
-        await http.delete(apiEndpoint + id, headers: await _getDefaultHeader());
-    if (response.statusCode == 204) {
-      return;
-    } else {
-      throw Exception('Failed to delete Task with id = $id');
+    final int result = await _dbHelper.deleteTask(id);
+    if (result == 0) {
+      throw Exception('Failed to delete task');
     }
-  }
-
-  static Future<Map<String, String>> _getDefaultHeader(
-      [Map<String, String> curentHeaders]) async {
-    var headers = Map<String, String>();
- 
-    var jsonHeader = "application/json";
-    headers['content-type'] = jsonHeader;
-    if (curentHeaders != null) {
-      curentHeaders.forEach((key, value) {
-        headers[key] = value;
-      });
-    }
-
-    return headers;
   }
 }
 
